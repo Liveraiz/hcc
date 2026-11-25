@@ -25,6 +25,23 @@
       opacity: .6; -webkit-tap-highlight-color: transparent;
     }
     #fsBtn:active { opacity: 1; }
+    /* 링크를 새 탭 대신 같은 페이지 안에서 띄우는 레이어 (전체화면 유지용) */
+    #viewer {
+      position: fixed; inset: 0; z-index: 5; display: none;
+      flex-direction: column; background: #0f141b;
+    }
+    #viewer.open { display: flex; }
+    #viewerBar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top));
+      background: #161d27; color: #fff; font: 15px/1.3 system-ui, sans-serif;
+    }
+    #viewerBar button, #viewerBar a {
+      flex: 0 0 auto; padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.25);
+      background: transparent; color: #fff; font: inherit; text-decoration: none; cursor: pointer;
+    }
+    #viewerTitle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #viewer iframe { flex: 1; height: auto; }
     #fsHint {
       position: fixed; left: 50%; bottom: calc(68px + env(safe-area-inset-bottom));
       transform: translateX(-50%); z-index: 10; max-width: 80vw; padding: 10px 14px;
@@ -39,6 +56,13 @@
     title="수술 작업 조회"
     allow="clipboard-write">
   </iframe>
+  <div id="viewer">
+    <div id="viewerBar">
+      <button id="viewerBack" type="button">← 목록</button>
+      <span id="viewerTitle"></span>
+      <a id="viewerExt" href="#" target="_blank" rel="noopener">새 탭 ↗</a>
+    </div>
+  </div>
   <button id="fsBtn" type="button" aria-label="전체화면" title="전체화면">⛶</button>
   <div id="fsHint">이 기기의 브라우저는 전체화면을 지원하지 않습니다.<br>공유 → '홈 화면에 추가'로 열면 주소창 없이 볼 수 있어요.</div>
   <script>
@@ -75,6 +99,46 @@
         else {
           var r = req.call(el);
           if (r && r.catch) r.catch(function () {});
+        }
+      });
+    })();
+
+    // Apps Script 화면의 링크를 새 탭 대신 이 페이지 안의 레이어로 열기.
+    // 새 탭으로 가면 전체화면이 풀리기 때문. Apps Script 쪽에서 postMessage로 요청을 보내야 동작함.
+    (function () {
+      var viewer = document.getElementById('viewer');
+      var title = document.getElementById('viewerTitle');
+      var ext = document.getElementById('viewerExt');
+      var frame = null;
+      var GAS_ORIGIN = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
+
+      function open(url, label) {
+        close();
+        // 매번 새 iframe을 만들어야 방문 기록(뒤로가기)에 쌓이지 않음
+        frame = document.createElement('iframe');
+        frame.src = url;
+        frame.title = label || '링크';
+        frame.setAttribute('allow', 'fullscreen; clipboard-write; xr-spatial-tracking');
+        viewer.appendChild(frame);
+        title.textContent = label || url;
+        ext.href = url;
+        viewer.classList.add('open');
+      }
+      function close() {
+        if (frame) { frame.remove(); frame = null; }
+        viewer.classList.remove('open');
+      }
+      document.getElementById('viewerBack').addEventListener('click', close);
+      // 새 탭으로 열면 어차피 전체화면이 풀리므로 레이어는 닫아 둠
+      ext.addEventListener('click', function () { setTimeout(close, 0); });
+
+      window.addEventListener('message', function (e) {
+        if (!GAS_ORIGIN.test(e.origin)) return;
+        var d = e.data || {};
+        if (d.type === 'hcc-hello') {
+          e.source.postMessage({ type: 'hcc-wrapper' }, e.origin);
+        } else if (d.type === 'hcc-open' && /^https?:\/\//i.test(d.url || '')) {
+          open(d.url, d.label);
         }
       });
     })();
