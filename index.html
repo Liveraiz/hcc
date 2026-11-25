@@ -17,6 +17,20 @@
       height: 100vh;      /* 구형 브라우저용 */
       height: 100dvh;     /* 모바일 주소창 높이 변화 대응 */
     }
+    #fsBtn {
+      position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom));
+      z-index: 10; width: 44px; height: 44px; border-radius: 22px;
+      border: 1px solid rgba(255,255,255,.25); background: rgba(15,20,27,.6);
+      color: #fff; font-size: 20px; line-height: 1; cursor: pointer;
+      opacity: .6; -webkit-tap-highlight-color: transparent;
+    }
+    #fsBtn:active { opacity: 1; }
+    #fsHint {
+      position: fixed; left: 50%; bottom: calc(68px + env(safe-area-inset-bottom));
+      transform: translateX(-50%); z-index: 10; max-width: 80vw; padding: 10px 14px;
+      border-radius: 8px; background: rgba(0,0,0,.85); color: #fff;
+      font: 14px/1.4 system-ui, sans-serif; text-align: center; display: none;
+    }
   </style>
 </head>
 <body>
@@ -25,5 +39,45 @@
     title="수술 작업 조회"
     allow="clipboard-write">
   </iframe>
+  <button id="fsBtn" type="button" aria-label="전체화면" title="전체화면">⛶</button>
+  <div id="fsHint">이 기기의 브라우저는 전체화면을 지원하지 않습니다.<br>공유 → '홈 화면에 추가'로 열면 주소창 없이 볼 수 있어요.</div>
+  <script>
+    (function () {
+      var btn = document.getElementById('fsBtn');
+      var hint = document.getElementById('fsHint');
+      var el = document.documentElement;
+      var req = el.requestFullscreen || el.webkitRequestFullscreen;
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
+      function current() { return document.fullscreenElement || document.webkitFullscreenElement; }
+
+      // 홈 화면 앱(standalone)으로 열린 경우엔 이미 주소창이 없으므로 버튼 숨김
+      if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+        btn.style.display = 'none';
+        return;
+      }
+
+      function sync() {
+        var on = !!current();
+        btn.textContent = on ? '✕' : '⛶';
+        btn.setAttribute('aria-label', on ? '전체화면 종료' : '전체화면');
+        btn.title = btn.getAttribute('aria-label');
+      }
+      document.addEventListener('fullscreenchange', sync);
+      document.addEventListener('webkitfullscreenchange', sync);
+
+      btn.addEventListener('click', function () {
+        if (!req) {  // iPhone Safari 등 Fullscreen API 미지원
+          hint.style.display = 'block';
+          setTimeout(function () { hint.style.display = 'none'; }, 4000);
+          return;
+        }
+        if (current()) exit.call(document);
+        else {
+          var r = req.call(el);
+          if (r && r.catch) r.catch(function () {});
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
